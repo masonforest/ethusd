@@ -19,17 +19,29 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var key *ecdsa.PrivateKey
-var auth *bind.TransactOpts
-var sim *backends.SimulatedBackend
-var GAS_LIMIT = big.NewInt(500000)
-var NONCE = big.NewInt(2)
+var (
+  key0 *ecdsa.PrivateKey
+  key1 *ecdsa.PrivateKey
+  addr0 common.Address
+  addr1 common.Address
+  auth *bind.TransactOpts
+  sim *backends.SimulatedBackend
+  GAS_LIMIT = big.NewInt(500000)
+  NONCE = big.NewInt(2)
+)
 
 func TestMain(m *testing.M) {
-	key, _ = crypto.GenerateKey()
-	auth = bind.NewKeyedTransactor(key)
+	key0, _ = crypto.GenerateKey()
+	key1, _ = crypto.GenerateKey()
+  addr0 = crypto.PubkeyToAddress(key0.PublicKey)
+  addr1 = crypto.PubkeyToAddress(key1.PublicKey)
+	auth = bind.NewKeyedTransactor(key0)
 	sim = backends.NewSimulatedBackend(
 		core.GenesisAccount{
+			Address: auth.From,
+			Balance: big.NewInt(9223372036854775807),
+		},
+    core.GenesisAccount{
 			Address: auth.From,
 			Balance: big.NewInt(9223372036854775807),
 		})
@@ -39,7 +51,7 @@ func TestMain(m *testing.M) {
 
 func Signer(key *ecdsa.PrivateKey) bind.SignerFn {
 	return func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
-		signature, err := crypto.Sign(tx.SigHash().Bytes(), key)
+		signature, err := crypto.Sign(tx.SigHash().Bytes(), key0)
 		if err != nil {
 			return nil, err
 		}
@@ -47,12 +59,12 @@ func Signer(key *ecdsa.PrivateKey) bind.SignerFn {
 	}
 }
 
-func TestInitializer(t *testing.T) {
+func deploy(initialSupply *big.Int, name string) (*EthUSD) {
 	_, _, ethUSD, err := DeployEthUSD(
 		auth,
 		sim,
-		big.NewInt(100),
-		"EthUSD",
+		initialSupply,
+		name,
 	)
 
 	if err != nil {
@@ -60,6 +72,12 @@ func TestInitializer(t *testing.T) {
 	}
 
 	sim.Commit()
+
+  return ethUSD
+}
+
+func TestInitializer(t *testing.T) {
+  ethUSD := deploy(big.NewInt(100), "EthUSD")
 
 	name, _ := ethUSD.Name(nil)
 	assert.Equal(t, "EthUSD", name)
@@ -68,27 +86,14 @@ func TestInitializer(t *testing.T) {
 }
 
 func TestTransfer(t *testing.T) {
-	_, _, ethUSD, err := DeployEthUSD(
-		auth,
-		sim,
-		big.NewInt(3),
-		"EthUSD",
-	)
+  ethUSD := deploy(big.NewInt(3), "EthUSD")
 
-	if err != nil {
-		log.Fatalf("Failed to deploy new token contract: %v", err)
-	}
-
-	sim.Commit()
-	recipientKey, _ := crypto.GenerateKey()
-	recipient := bind.NewKeyedTransactor(recipientKey).From
-
-	_, err = ethUSD.Transfer(&bind.TransactOpts{
+	_, err := ethUSD.Transfer(&bind.TransactOpts{
 		Nonce:    NONCE,
 		GasLimit: GAS_LIMIT,
-		Signer:   Signer(key),
+		Signer:   Signer(key0),
 	},
-		recipient,
+		addr1,
 		big.NewInt(1),
 	)
 
@@ -98,8 +103,8 @@ func TestTransfer(t *testing.T) {
 
 	sim.Commit()
 
-	senderBalance, _ := ethUSD.BalanceOf(nil, auth.From)
-	recipientBalance, _ := ethUSD.BalanceOf(nil, recipient)
+	senderBalance, _ := ethUSD.BalanceOf(nil, addr0)
+	recipientBalance, _ := ethUSD.BalanceOf(nil, addr1)
 	assert.Equal(t, big.NewInt(2), senderBalance)
 	assert.Equal(t, big.NewInt(1), recipientBalance)
 }

@@ -87,7 +87,7 @@ type EthUSDTransactorRaw struct {
 
 // NewEthUSD creates a new instance of EthUSD, bound to a specific deployed contract.
 func NewEthUSD(address common.Address, backend bind.ContractBackend) (*EthUSD, error) {
-	contract, err := bindEthUSD(address, backend.(bind.ContractCaller), backend.(bind.ContractTransactor))
+	contract, err := bindEthUSD(address, backend, backend)
 	if err != nil {
 		return nil, err
 	}
