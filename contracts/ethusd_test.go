@@ -1,6 +1,6 @@
-//go:generate abigen --sol ethusd.sol --pkg main --out ethusd.go
-
 package main
+
+//go:generate abigen --sol ethusd.sol --pkg main --out ethusd.go
 
 import (
 	"crypto/ecdsa"
@@ -20,28 +20,28 @@ import (
 )
 
 var (
-  key0 *ecdsa.PrivateKey
-  key1 *ecdsa.PrivateKey
-  addr0 common.Address
-  addr1 common.Address
-  auth *bind.TransactOpts
-  sim *backends.SimulatedBackend
-  GAS_LIMIT = big.NewInt(500000)
-  NONCE = big.NewInt(2)
+	key0      *ecdsa.PrivateKey
+	key1      *ecdsa.PrivateKey
+	addr0     common.Address
+	addr1     common.Address
+	auth      *bind.TransactOpts
+	sim       *backends.SimulatedBackend
+	GAS_LIMIT = big.NewInt(500000)
+	NONCE     = big.NewInt(2)
 )
 
 func TestMain(m *testing.M) {
 	key0, _ = crypto.GenerateKey()
 	key1, _ = crypto.GenerateKey()
-  addr0 = crypto.PubkeyToAddress(key0.PublicKey)
-  addr1 = crypto.PubkeyToAddress(key1.PublicKey)
+	addr0 = crypto.PubkeyToAddress(key0.PublicKey)
+	addr1 = crypto.PubkeyToAddress(key1.PublicKey)
 	auth = bind.NewKeyedTransactor(key0)
 	sim = backends.NewSimulatedBackend(
 		core.GenesisAccount{
 			Address: auth.From,
 			Balance: big.NewInt(9223372036854775807),
 		},
-    core.GenesisAccount{
+		core.GenesisAccount{
 			Address: auth.From,
 			Balance: big.NewInt(9223372036854775807),
 		})
@@ -59,7 +59,7 @@ func Signer(key *ecdsa.PrivateKey) bind.SignerFn {
 	}
 }
 
-func deploy(initialSupply *big.Int, name string) (*EthUSD) {
+func deploy(initialSupply *big.Int, name string) *EthUSD {
 	_, _, ethUSD, err := DeployEthUSD(
 		auth,
 		sim,
@@ -73,11 +73,11 @@ func deploy(initialSupply *big.Int, name string) (*EthUSD) {
 
 	sim.Commit()
 
-  return ethUSD
+	return ethUSD
 }
 
 func TestInitializer(t *testing.T) {
-  ethUSD := deploy(big.NewInt(100), "EthUSD")
+	ethUSD := deploy(big.NewInt(100), "EthUSD")
 
 	name, _ := ethUSD.Name(nil)
 	assert.Equal(t, "EthUSD", name)
@@ -86,7 +86,7 @@ func TestInitializer(t *testing.T) {
 }
 
 func TestTransfer(t *testing.T) {
-  ethUSD := deploy(big.NewInt(3), "EthUSD")
+	ethUSD := deploy(big.NewInt(3), "EthUSD")
 
 	_, err := ethUSD.Transfer(&bind.TransactOpts{
 		Nonce:    NONCE,
