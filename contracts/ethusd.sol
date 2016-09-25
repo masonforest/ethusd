@@ -1,28 +1,34 @@
-contract EthUSD {
-    string public name;
-    string public symbol;
-    uint8 public decimals;
+//import "ERC20Token.sol";
+import "oraclizeApi.sol";
 
-    mapping (address => uint256) public balanceOf;
-    mapping (address => mapping (address => uint)) public allowance;
-    mapping (address => mapping (address => uint)) public spentAllowance;
+contract EthUSD is usingOraclize {
+  uint public exchangeRate;
+	bool public called;
+	mapping (address => uint256) balances;
 
-    event Transfer(address indexed from, address indexed to, uint256 value);
+  function EthUSD(){
+		//oraclize_setProof(proofType_TLSNotary | proofStorage_IPFS);
+    exchangeRate = 100;
+	//	updateExchangeRate(0);
+  }
 
-    function EthUSD(uint256 initialSupply, string tokenName) {
-        balanceOf[msg.sender] = initialSupply;
-        name = tokenName;
-    }
+	function buy() returns (bool success) {
+		if (msg.value > 0) {
+				balances[msg.sender] += msg.value;
+				return true;
+		} else {
+			return false;
+		}
+	}
 
-    function transfer(address _to, uint256 _value) {
-        if (balanceOf[msg.sender] < _value) throw;
-        if (balanceOf[_to] + _value < balanceOf[_to]) throw;
-        balanceOf[msg.sender] -= _value;
-        balanceOf[_to] += _value;
-        Transfer(msg.sender, _to, _value);
-    }
+  //function __callback(bytes32 myid, string result, bytes proof) {
+  //  if (msg.sender != oraclize_cbAddress()) throw;
+  //  exchangeRate = parseInt(result, 2); // save it as $ cents
+	//	called = true;
+  //}
 
-    function () {
-        throw;
-    }
+  //function updateExchangeRate(uint delay){
+  //  oraclize_query(delay, "URL",
+  //    "https://poloniex.com/public?command=returnTicker).USDT_ETH.last");
+  //}
 }
