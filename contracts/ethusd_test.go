@@ -20,10 +20,8 @@ import (
 )
 
 var (
-	key0             *ecdsa.PrivateKey
-	key1             *ecdsa.PrivateKey
-	addr0            common.Address
-	addr1            common.Address
+	senderKey        *ecdsa.PrivateKey
+	sender           common.Address
 	auth             *bind.TransactOpts
 	backend          *backends.SimulatedBackend
 	NONCE            = big.NewInt(2)
@@ -32,7 +30,7 @@ var (
 
 func Signer(key *ecdsa.PrivateKey) bind.SignerFn {
 	return func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
-		signature, err := crypto.Sign(tx.SigHash().Bytes(), key0)
+		signature, err := crypto.Sign(tx.SigHash().Bytes(), senderKey)
 		if err != nil {
 			return nil, err
 		}
@@ -41,18 +39,12 @@ func Signer(key *ecdsa.PrivateKey) bind.SignerFn {
 }
 
 func TestMain(m *testing.M) {
-	key0, _ = crypto.GenerateKey()
-	key1, _ = crypto.GenerateKey()
-	addr0 = crypto.PubkeyToAddress(key0.PublicKey)
-	addr1 = crypto.PubkeyToAddress(key1.PublicKey)
-	auth = bind.NewKeyedTransactor(key0)
+	senderKey, _ = crypto.GenerateKey()
+	sender = crypto.PubkeyToAddress(senderKey.PublicKey)
+	auth = bind.NewKeyedTransactor(senderKey)
 	backend = backends.NewSimulatedBackend(
 		core.GenesisAccount{
-			Address: addr0,
-			Balance: STARTING_BALANCE,
-		},
-		core.GenesisAccount{
-			Address: addr1,
+			Address: sender,
 			Balance: STARTING_BALANCE,
 		})
 	flag.Parse()
@@ -61,7 +53,7 @@ func TestMain(m *testing.M) {
 
 func deploy(name string) *TestEthUSDSession {
 	_, _, token, err := DeployTestEthUSD(
-		bind.NewKeyedTransactor(key0),
+		bind.NewKeyedTransactor(senderKey),
 		backend,
 		name,
 	)
@@ -72,7 +64,7 @@ func deploy(name string) *TestEthUSDSession {
 
 	return &TestEthUSDSession{
 		Contract:     token,
-		TransactOpts: *bind.NewKeyedTransactor(key0),
+		TransactOpts: *bind.NewKeyedTransactor(senderKey),
 	}
 }
 
@@ -94,15 +86,37 @@ func TestPurchase(t *testing.T) {
 	session.SetExchangeRate(big.NewInt(2))
 
 	_, err := session.Contract.TestEthUSDTransactor.Purchase(
-		paidTransactOpts(big.NewInt(1), key0),
+		paidTransactOpts(big.NewInt(1), senderKey),
 	)
 
 	checkErr(err)
 
 	backend.Commit()
 
-	balance, _ := session.BalanceOf(addr0)
+	balance, _ := session.BalanceOf(sender)
 	assert.Equal(t, big.NewInt(2), balance)
+}
+
+func TestWithdraw(t *testing.T) {
+	session := deploy("TestEthUSD")
+	session.SetBalance(sender, big.NewInt(2))
+	var COST_OF_TRANSACTION = big.NewInt(1640536)
+
+	_, err := session.Withdraw(big.NewInt(1))
+
+	checkErr(err)
+
+	backend.Commit()
+
+	ethUSDBalance, _ := session.BalanceOf(sender)
+	assert.Equal(t, big.NewInt(1), ethUSDBalance)
+
+	weiBalance, _ := backend.BalanceAt(nil, sender, nil)
+
+	expectedWeiBalance := STARTING_BALANCE
+	expectedWeiBalance.Sub(expectedWeiBalance, COST_OF_TRANSACTION)
+	expectedWeiBalance.Add(expectedWeiBalance, big.NewInt(1))
+	assert.Equal(t, expectedWeiBalance, weiBalance)
 }
 
 func checkErr(err error) {
