@@ -14,10 +14,19 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
 )
+
+type Value big.Int
+
+func (v *Value) toWei() *big.Int {
+	return big.NewInt(0).Mul(((*big.Int)(v)), common.Ether)
+}
+
+func NewValue(value int64) *Value {
+	return (*Value)(big.NewInt(value))
+}
 
 var (
 	senderKey        *ecdsa.PrivateKey
@@ -25,17 +34,13 @@ var (
 	auth             *bind.TransactOpts
 	backend          *backends.SimulatedBackend
 	NONCE            = big.NewInt(2)
-	STARTING_BALANCE = big.NewInt(10000000000000000)
+	STARTING_BALANCE = NewValue(2).toWei()
 )
 
-func Signer(key *ecdsa.PrivateKey) bind.SignerFn {
-	return func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
-		signature, err := crypto.Sign(tx.SigHash().Bytes(), senderKey)
-		if err != nil {
-			return nil, err
-		}
-		return tx.WithSignature(signature)
-	}
+func paidTransactOpts(value *big.Int, key *ecdsa.PrivateKey) *bind.TransactOpts {
+	t := bind.NewKeyedTransactor(key)
+	t.Value = value
+	return t
 }
 
 func TestMain(m *testing.M) {
@@ -51,11 +56,12 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func deploy(name string) *TestEthUSDSession {
+func deploy(name string, symbol string) *TestEthUSDSession {
 	_, _, token, err := DeployTestEthUSD(
 		bind.NewKeyedTransactor(senderKey),
 		backend,
 		name,
+		symbol,
 	)
 
 	checkErr(err)
@@ -69,24 +75,28 @@ func deploy(name string) *TestEthUSDSession {
 }
 
 func TestInitialize(t *testing.T) {
-	token := deploy("TestEthUSD")
+	token := deploy("EthUSD", "ETHUSD")
 
 	name, _ := token.Name()
-	assert.Equal(t, "TestEthUSD", name)
-}
+	assert.Equal(t, "EthUSD", name)
 
-func paidTransactOpts(value *big.Int, key *ecdsa.PrivateKey) *bind.TransactOpts {
-	t := bind.NewKeyedTransactor(key)
-	t.Value = value
-	return t
+	symbol, _ := token.Symbol()
+	assert.Equal(t, "ETHUSD", symbol)
 }
 
 func TestPurchase(t *testing.T) {
-	session := deploy("TestEthUSD")
-	session.SetExchangeRate(big.NewInt(2))
+	// 1 Ether
+	var AMOUNT_TO_PURCHASE = NewValue(1).toWei()
+	// 2 Cents USD per ether
+	var EXCHANGE_RATE = big.NewInt(2)
+	// 2 Cents USD
+	var EXPECTED_AMOUNT = EXCHANGE_RATE.Mul(EXCHANGE_RATE, big.NewInt(1))
+
+	session := deploy("TestEthUSD", "ETHUSD")
+	session.SetExchangeRate(EXCHANGE_RATE)
 
 	_, err := session.Contract.TestEthUSDTransactor.Purchase(
-		paidTransactOpts(big.NewInt(1), senderKey),
+		paidTransactOpts(AMOUNT_TO_PURCHASE, senderKey),
 	)
 
 	checkErr(err)
@@ -94,28 +104,29 @@ func TestPurchase(t *testing.T) {
 	backend.Commit()
 
 	balance, _ := session.BalanceOf(sender)
-	assert.Equal(t, big.NewInt(2), balance)
+	assert.Equal(t, EXPECTED_AMOUNT, balance)
 }
 
 func TestWithdraw(t *testing.T) {
-	session := deploy("TestEthUSD")
-	session.SetBalance(sender, big.NewInt(2))
-	var COST_OF_TRANSACTION = big.NewInt(1640536)
+	session := deploy("EthUSD", "ETHUSD")
+	session.SetBalance(sender, NewValue(2).toWei())
+	var COST_OF_TRANSACTION = big.NewInt(1000000000000072780)
+	startingBalance, _ := backend.BalanceAt(nil, sender, nil)
 
-	_, err := session.Withdraw(big.NewInt(1))
+	_, err := session.Withdraw(NewValue(1).toWei())
 
 	checkErr(err)
 
 	backend.Commit()
 
 	ethUSDBalance, _ := session.BalanceOf(sender)
-	assert.Equal(t, big.NewInt(1), ethUSDBalance)
+	assert.Equal(t, NewValue(1).toWei(), ethUSDBalance)
 
 	weiBalance, _ := backend.BalanceAt(nil, sender, nil)
 
-	expectedWeiBalance := STARTING_BALANCE
+	expectedWeiBalance := startingBalance
 	expectedWeiBalance.Sub(expectedWeiBalance, COST_OF_TRANSACTION)
-	expectedWeiBalance.Add(expectedWeiBalance, big.NewInt(1))
+	expectedWeiBalance.Add(expectedWeiBalance, NewValue(1).toWei())
 	assert.Equal(t, expectedWeiBalance, weiBalance)
 }
 

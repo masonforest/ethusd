@@ -4,8 +4,8 @@ contract ExchangeRateUpdater is usingOraclize {
   uint public exchangeRate;
 
   function ExchangeRateUpdater(){
-		oraclize_setProof(proofType_TLSNotary | proofStorage_IPFS);
-		updateExchangeRate(0);
+    oraclize_setProof(proofType_TLSNotary | proofStorage_IPFS);
+    updateExchangeRate(0);
   }
 
   function __callback(bytes32 myid, string result, bytes proof) {

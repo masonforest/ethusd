@@ -1,36 +1,44 @@
 import "ExchangeRateUpdater.sol";
+import "StandardToken.sol";
 
-contract EthUSD is ExchangeRateUpdater {
-	string public name;
-	mapping (address => uint256) balances;
+contract EthUSD is ExchangeRateUpdater, StandardToken {
+  string public name;
+  string public symbol;
+  mapping (address => uint256) public balances;
 
-	event Purchase(address indexed from, uint256 value);
-	event Withdraw(address indexed from, uint256 value);
+  event Purchase(address indexed from, uint256 value);
+  event Withdraw(address indexed from, uint256 value);
 
-	function balanceOf(address _owner) constant returns (uint256 balance) {
-		return balances[_owner];
+  function EthUSD(string _name, string _symbol) {
+    name = _name;
+    symbol = _symbol;
   }
 
-	function purchase() returns (bool success) {
-		if (msg.value > 0) {
-				uint amount = msg.value * exchangeRate;
-				balances[msg.sender] += amount;
-				Purchase(msg.sender, amount);
-				return true;
-		} else {
-			return false;
-		}
-	}
+  function balanceOf(address _owner) constant returns (uint256 balance) {
+    return balances[_owner];
+  }
 
-	function withdraw(uint amountInCents) returns (bool success) {
-		if(balances[msg.sender] > amountInCents){
-			balances[msg.sender] -= amountInCents;
-			uint amountInWei = amountInCents / exchangeRate;
-			msg.sender.send(amountInWei);
-			Purchase(msg.sender, amountInWei);
-			return true;
-		} else {
-			return false;
-		}
-	}
+  function purchase() returns (bool success) {
+    if (msg.value > 0) {
+      Purchase(msg.sender, msg.value);
+      uint amount = (msg.value * exchangeRate) / 1 ether;
+      balances[msg.sender] += amount;
+      Purchase(msg.sender, amount);
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  function withdraw(uint amountInCents) returns (bool success) {
+    if(balances[msg.sender] > amountInCents){
+      balances[msg.sender] -= amountInCents;
+      uint amountInWei = amountInCents / exchangeRate;
+      msg.sender.send(amountInWei);
+      Purchase(msg.sender, amountInWei);
+      return true;
+    } else {
+      return false;
+    }
+  }
 }
