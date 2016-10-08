@@ -34,7 +34,7 @@ var (
 	auth             *bind.TransactOpts
 	backend          *backends.SimulatedBackend
 	NONCE            = big.NewInt(2)
-	STARTING_BALANCE = NewValue(2).toWei()
+	STARTING_BALANCE = NewValue(4).toWei()
 )
 
 func paidTransactOpts(value *big.Int, key *ecdsa.PrivateKey) *bind.TransactOpts {
@@ -84,16 +84,45 @@ func TestInitialize(t *testing.T) {
 	assert.Equal(t, "ETHUSD", symbol)
 }
 
-func TestPurchase(t *testing.T) {
+func TestPurchaseWhenExchangeRateLessThanCap(t *testing.T) {
 	// 1 Ether
 	var AMOUNT_TO_PURCHASE = NewValue(1).toWei()
-	// 2 Cents USD per ether
-	var EXCHANGE_RATE = big.NewInt(2)
-	// 2 Cents USD
-	var EXPECTED_AMOUNT = EXCHANGE_RATE.Mul(EXCHANGE_RATE, big.NewInt(1))
+	// $11 USD per ether
+	var EXCHANGE_RATE = big.NewInt(1100)
+	// $12 USD per ether
+	var EXCHANGE_RATE_CAP = big.NewInt(1200)
+	// 11 ETHUSD
+	var EXPECTED_AMOUNT = big.NewInt(1100)
 
 	session := deploy("TestEthUSD", "ETHUSD")
 	session.SetExchangeRate(EXCHANGE_RATE)
+	session.SetExchangeRateCap(EXCHANGE_RATE_CAP)
+
+	_, err := session.Contract.TestEthUSDTransactor.Purchase(
+		paidTransactOpts(AMOUNT_TO_PURCHASE, senderKey),
+	)
+
+	checkErr(err)
+
+	backend.Commit()
+
+	balance, _ := session.BalanceOf(sender)
+	assert.Equal(t, EXPECTED_AMOUNT, balance)
+}
+
+func TestPurchaseWhenExchangeRateGreaterThanCap(t *testing.T) {
+	// 1 Ether
+	var AMOUNT_TO_PURCHASE = NewValue(1).toWei()
+	// $13 USD per ether
+	var EXCHANGE_RATE = big.NewInt(1300)
+	// $12 USD per ether
+	var EXCHANGE_RATE_CAP = big.NewInt(1200)
+	// 11 ETHUSD
+	var EXPECTED_AMOUNT = big.NewInt(1200)
+
+	session := deploy("TestEthUSD", "ETHUSD")
+	session.SetExchangeRate(EXCHANGE_RATE)
+	session.SetExchangeRateCap(EXCHANGE_RATE_CAP)
 
 	_, err := session.Contract.TestEthUSDTransactor.Purchase(
 		paidTransactOpts(AMOUNT_TO_PURCHASE, senderKey),
@@ -110,7 +139,7 @@ func TestPurchase(t *testing.T) {
 func TestWithdraw(t *testing.T) {
 	session := deploy("EthUSD", "ETHUSD")
 	session.SetBalance(sender, NewValue(2).toWei())
-	var COST_OF_TRANSACTION = big.NewInt(1000000000000072780)
+	var COST_OF_TRANSACTION = big.NewInt(1000000000000072824)
 	startingBalance, _ := backend.BalanceAt(nil, sender, nil)
 
 	_, err := session.Withdraw(NewValue(1).toWei())

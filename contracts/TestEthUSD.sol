@@ -5,6 +5,10 @@ contract TestEthUSD is EthUSD {
   }
 
 
+  function setExchangeRateCap(uint256 _amount){
+    exchangeRateCap = _amount;
+  }
+
   function setExchangeRate(uint256 _amount){
     exchangeRate = _amount;
   }

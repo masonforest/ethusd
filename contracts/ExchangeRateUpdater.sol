@@ -1,6 +1,7 @@
 import "oraclizeApi.sol";
 
 contract ExchangeRateUpdater is usingOraclize {
+  uint public exchangeRateCap;
   uint public exchangeRate;
 
   function ExchangeRateUpdater(){
@@ -10,7 +11,15 @@ contract ExchangeRateUpdater is usingOraclize {
 
   function __callback(bytes32 myid, string result, bytes proof) {
     if (msg.sender != oraclize_cbAddress()) throw;
-    exchangeRate = parseInt(result, 2); // save it as $ cents
+
+    // If exchangeRate has not yet been set this is
+    // the first run and we set should exchangeRateCap aswell
+    if (exchangeRate == 0 ) {
+      exchangeRate = parseInt(result, 2);
+      exchangeRateCap = exchangeRate;
+    } else {
+      exchangeRate = parseInt(result, 2);
+    }
   }
 
   function updateExchangeRate(uint delay){

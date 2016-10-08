@@ -21,7 +21,7 @@ contract EthUSD is ExchangeRateUpdater, StandardToken {
   function purchase() returns (bool success) {
     if (msg.value > 0) {
       Purchase(msg.sender, msg.value);
-      uint amount = (msg.value * exchangeRate) / 1 ether;
+      uint amount = (msg.value * cappedExhangeRate()) / 1 ether;
       balances[msg.sender] += amount;
       Purchase(msg.sender, amount);
       return true;
@@ -39,6 +39,14 @@ contract EthUSD is ExchangeRateUpdater, StandardToken {
       return true;
     } else {
       return false;
+    }
+  }
+
+  function cappedExhangeRate() private returns (uint256 rate) {
+    if (exchangeRate > exchangeRateCap) {
+      return exchangeRateCap;
+    } else {
+      return exchangeRate;
     }
   }
 }
