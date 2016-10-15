@@ -5,6 +5,7 @@ package main
 import (
 	"crypto/ecdsa"
 	"flag"
+	"fmt"
 	"log"
 	"math/big"
 	"os"
@@ -127,62 +128,48 @@ func TestWithdrawWhenContractIsFull(t *testing.T) {
 	// $12 USD per ether
 	var PURCHASE_EXCHANGE_RATE = big.NewInt(1200)
 	// $12 USD per ether
-	var WITHDRAWL_EXCHANGE_RATE = big.NewInt(1200)
+	var WITHDRAWAL_EXCHANGE_RATE = big.NewInt(1200)
 	// 12 ETHUSD
-	var WITHDRAWL_AMOUNT = big.NewInt(1200)
-	var COST_OF_TRANSACTION = big.NewInt(926340)
+	var WITHDRAWAL_AMOUNT = big.NewInt(1200)
+	var COST_OF_TRANSACTION = big.NewInt(941802)
 
+	var weiPurchased = big.NewInt(0)
+	weiPurchased.Mul(PURCHASE_AMOUNT, PURCHASE_EXCHANGE_RATE)
+
+	var weiWithdrawn = big.NewInt(0)
+	weiWithdrawn.Mul(WITHDRAWAL_AMOUNT, NewValue(1).toWei())
+	weiWithdrawn.Mul(weiWithdrawn, PURCHASE_EXCHANGE_RATE)
+	weiWithdrawn.Div(weiWithdrawn, WITHDRAWAL_EXCHANGE_RATE)
+
+	fmt.Printf("P: %s\n", weiPurchased)
+	fmt.Printf("W: %s\n", weiWithdrawn)
 	startingBalance, _ := backend.BalanceAt(nil, account1, nil)
+	var expectedBalance = big.NewInt(0)
+	expectedBalance.Sub(startingBalance, COST_OF_TRANSACTION)
+	expectedBalance.Add(expectedBalance, weiPurchased)
+	expectedBalance.Sub(expectedBalance, weiWithdrawn)
+
 	session := deploy("TestEthUSD", "ETHUSD")
 	session.SetExchangeRate(PURCHASE_EXCHANGE_RATE)
 
 	_, err := session.Contract.TestEthUSDTransactor.Purchase(
 		paidTransactOpts(PURCHASE_AMOUNT, account1Key),
 	)
+	backend.Commit()
 
-	_, err = session.Withdraw(WITHDRAWL_AMOUNT)
-	session.SetExchangeRate(WITHDRAWL_EXCHANGE_RATE)
+	session.SetExchangeRate(WITHDRAWAL_EXCHANGE_RATE)
+	weiBalance, _ := backend.BalanceAt(nil, account1, nil)
+	fmt.Printf("Before: %s\n", weiBalance)
+	_, err = session.Withdraw(WITHDRAWAL_AMOUNT)
 
 	checkErr(err)
 
 	backend.Commit()
-	weiBalance, _ := backend.BalanceAt(nil, account1, nil)
-	expectedWeiBalance := startingBalance.Sub(startingBalance, COST_OF_TRANSACTION)
-	assert.Equal(t, expectedWeiBalance, weiBalance)
-	// // 12 ETHUSD
-	// var PURCHASE_AMOUNT = big.NewInt(1200)
-	// var PURCHASE_EXCHANGE_RATE = big.NewInt(1200)
-	// // var WITHDRAWL_AMOUNT = big.NewInt(1200)
-	// // var WITHDRAWL_EXCHANGE_RATE = big.NewInt(1300)
-	// var EXPECTED_AMOUNT = NewValue(1).toWei()
-	// var COST_OF_TRANSACTION = big.NewInt(0)
-	//
-	// startingBalance, _ := backend.BalanceAt(nil, account1, nil)
-	// fmt.Printf("1: %s\n", startingBalance)
-	// session := deploy("EthUSD", "ETHUSD")
-	// startingBalance, _ = backend.BalanceAt(nil, account1, nil)
-	// fmt.Printf("2: %s\n", startingBalance)
-	// session.SetExchangeRate(PURCHASE_EXCHANGE_RATE)
-	// _, err := session.Contract.TestEthUSDTransactor.Purchase(
-	// 	paidTransactOpts(PURCHASE_AMOUNT, account1Key),
-	// )
-	// // session.SetExchangeRate(WITHDRAWL_EXCHANGE_RATE)
-	//
-	// // _, err = session.Withdraw(WITHDRAWL_AMOUNT)
-	//
-	// checkErr(err)
-	//
-	// backend.Commit()
-	//
-	// balance, _ := session.BalanceOf(account1)
-	// fmt.Printf("balance: %s\n", balance)
-	//
-	// weiBalance, _ := backend.BalanceAt(nil, account1, nil)
-	// fmt.Printf("3: %s\n", weiBalance)
-	// expectedWeiBalance := startingBalance
-	// expectedWeiBalance.Sub(expectedWeiBalance, COST_OF_TRANSACTION)
-	// expectedWeiBalance.Add(expectedWeiBalance, EXPECTED_AMOUNT)
-	// assert.Equal(t, expectedWeiBalance, weiBalance)
+	weiBalance, _ = backend.BalanceAt(nil, account1, nil)
+	fmt.Printf("After: %s\n", weiBalance)
+
+	weiBalance, _ = backend.BalanceAt(nil, account1, nil)
+	assert.Equal(t, expectedBalance, weiBalance)
 }
 
 /*
@@ -191,28 +178,6 @@ func TestWithdrawWhenContractIsFull(t *testing.T) {
 	out a rate equal to the total supply divided by the
 	amount of value left in the contract.
 */
-
-// func TestWithdrawWhenContractIsLessThanFull(t *testing.T) {
-// 	session := deploy("EthUSD", "ETHUSD")
-// 	session.SetBalance(account1, NewValue(2).toWei())
-// 	var COST_OF_TRANSACTION = big.NewInt(1000000000000077851)
-// 	startingBalance, _ := backend.BalanceAt(nil, account1, nil)
-//
-// 	_, err := session.Withdraw(NewValue(1).toWei())
-//
-// 	checkErr(err)
-//
-// 	backend.Commit()
-//
-// 	ethUSDBalance, _ := session.BalanceOf(account1)
-// 	assert.Equal(t, NewValue(1).toWei(), ethUSDBalance)
-//
-// 	weiBalance, _ := backend.BalanceAt(nil, account1, nil)
-// 	expectedWeiBalance := startingBalance
-// 	expectedWeiBalance.Sub(expectedWeiBalance, COST_OF_TRANSACTION)
-// 	expectedWeiBalance.Add(expectedWeiBalance, NewValue(1).toWei())
-// 	assert.Equal(t, expectedWeiBalance, weiBalance)
-// }
 
 func checkErr(err error) {
 	if err != nil {
