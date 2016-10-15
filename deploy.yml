@@ -1,2 +1,3 @@
 EthUSD:
-  _name: Token
+  _name: EthUSD
+  _symbol: ETHUSD

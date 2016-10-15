@@ -4,11 +4,6 @@ contract TestEthUSD is EthUSD {
   function TestEthUSD(string _name, string _symbol) EthUSD(_name,_symbol) {
   }
 
-
-  function setExchangeRateCap(uint256 _amount){
-    exchangeRateCap = _amount;
-  }
-
   function setExchangeRate(uint256 _amount){
     exchangeRate = _amount;
   }

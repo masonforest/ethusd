@@ -21,8 +21,9 @@ contract EthUSD is ExchangeRateUpdater, StandardToken {
   function purchase() returns (bool success) {
     if (msg.value > 0) {
       Purchase(msg.sender, msg.value);
-      uint amount = (msg.value * cappedExhangeRate()) / 1 ether;
+      uint amount = (msg.value * exchangeRate) / 1 ether;
       balances[msg.sender] += amount;
+      totalSupply += amount;
       Purchase(msg.sender, amount);
       return true;
     } else {
@@ -31,22 +32,15 @@ contract EthUSD is ExchangeRateUpdater, StandardToken {
   }
 
   function withdraw(uint amountInCents) returns (bool success) {
-    if(balances[msg.sender] > amountInCents){
+    if(balances[msg.sender] >= amountInCents){
       balances[msg.sender] -= amountInCents;
-      uint amountInWei = amountInCents / exchangeRate;
+      uint amountInWei = amountInCents * 1 ether / exchangeRate;
       msg.sender.send(amountInWei);
+      totalSupply -= amountInWei;
       Purchase(msg.sender, amountInWei);
       return true;
     } else {
       return false;
-    }
-  }
-
-  function cappedExhangeRate() private returns (uint256 rate) {
-    if (exchangeRate > exchangeRateCap) {
-      return exchangeRateCap;
-    } else {
-      return exchangeRate;
     }
   }
 }
