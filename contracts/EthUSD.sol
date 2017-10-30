@@ -1,54 +1,53 @@
-import "ExchangeRateUpdater.sol";
-import "StandardToken.sol";
+pragma solidity ^0.4.15;
 
-contract EthUSD is ExchangeRateUpdater, StandardToken {
-    string public name;
-    string public symbol;
-    mapping (address => uint256) public balances;
+import "./ERC20Token.sol";
+import "./EtherPriceOracleInterface.sol";
 
-    event Purchase(address indexed from, uint256 value);
-    event Withdraw(address indexed from, uint256 value);
+contract EthUSD is ERC20Token {
+  EtherPriceOracleInterface priceOracle;
+  string public constant symbol = "EthUSD";
+  string public constant name = "USD pegged Ether backed stablecoin";
+  uint8 public constant decimals = 2;
 
-    function EthUSD(string _name, string _symbol) {
-        name = _name;
-        symbol = _symbol;
+  function EthUSD(address etherPriceOracleAddress) {
+    priceOracle = EtherPriceOracleInterface(etherPriceOracleAddress);
+  }
+
+  function donate() payable {}
+
+  function issue() payable {
+    uint amountInCents = (msg.value * priceOracle.price()) / 1 ether;
+    _totalSupply += amountInCents;
+    balances[msg.sender] += amountInCents;
+  }
+
+  function getPrice() returns (uint) {
+    return priceOracle.price();
+  }
+
+  function withdraw(uint amountInCents) returns (uint amountInWei){
+    assert(amountInCents <= balanceOf(msg.sender));
+    amountInWei = (amountInCents * 1 ether) / priceOracle.price();
+
+    // If we don't have enough Ether in the contract to pay out the full amount
+    // pay an amount proportinal to what we have left.
+    // this way user's net worth will never drop at a rate quicker than
+    // the collateral itself.
+
+    // For Example:
+    // A user deposits 1 Ether when the price of Ether is $300
+    // the price then falls to $150.
+    // If we have enough Ether in the contract we cover ther losses
+    // and pay them back 2 ether (the same amount in USD).
+    // if we don't have enough money to pay them back we pay out
+    // proportonailly to what we have left. In this case they'd
+    // get back their original deposit of 1 Ether.
+    if(this.balance <= amountInWei) {
+      amountInWei = (amountInWei * this.balance * priceOracle.price()) / (1 ether * _totalSupply);
     }
 
-    function balanceOf(address _owner) constant returns (uint256 balance) {
-        return balances[_owner];
-    }
-
-    function purchase() returns (bool success) {
-        if (msg.value > 0) {
-            Purchase(msg.sender, msg.value);
-            uint amount = (msg.value * exchangeRate) / 1 ether;
-            balances[msg.sender] += amount;
-            totalSupply += amount;
-            Purchase(msg.sender, amount);
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    function withdraw(uint amountInCents) returns (bool success) {
-        if(balances[msg.sender] >= amountInCents){
-            balances[msg.sender] -= amountInCents;
-            uint amountInWei = (amountInCents / withdrawExchangeRate()) * 1 ether;
-            msg.sender.send(amountInWei);
-            totalSupply -= amountInWei;
-            Purchase(msg.sender, amountInWei);
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    function withdrawExchangeRate() private returns (uint) {
-        if(this.balance < (totalSupply * exchangeRate / 1 ether) ) {
-          return 1200;
-        } else {
-            return exchangeRate;
-        }
-    }
+    balances[msg.sender] -= amountInCents;
+    _totalSupply -= amountInCents;
+    msg.sender.transfer(amountInWei);
+  }
 }

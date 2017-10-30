@@ -1,0 +1,29 @@
+{
+  "name": "ethusd",
+  "version": "0.0.1",
+  "description": "",
+  "main": "truffle.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "./node_modules/truffle/build/cli.bundled.js test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/masonforest/ethusd.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/masonforest/ethusd/issues"
+  },
+  "homepage": "https://github.com/masonforest/ethusd#readme",
+  "dependencies": {
+    "solc": "^0.4.0",
+    "truffle": "^3.4.11"
+  },
+  "devDependencies": {
+    "bluebird": "^3.5.1"
+  }
+}
